@@ -10,14 +10,19 @@ Both the C/Id and gm/Id methodologies use lookup tables to store characterizatio
 For now the C/Id software only supports Cadence/Spectre simulator for characterizations using the Spectre Measurement Description Language (MDL) for technology characterization.
 
 # Installation
-
+Installation procedures are found in the docs directory in the file installation_guide.pdf
 # Technology Characterization
 All FET technologies can be characterized with this testbench.
-![cid_testbench](images/cid_testbench.png))
+![cid_testbench](images/cid_testbench.png)
+ The value of the ideal current source that connects the PFET and NFET drains together is swept and DC operating points for each device are saved and extracted with each DC operating point for lookup table generation. The Spectre MDL scripts provided in this repo create CSV files for lookup tables. The software takes care of translating the CSV files into the API. This characterization should be done for all lengths of transistor under interested or for a good span of lengths available in a given PDK. This charactetrization only needs to be done once per PDK.
+
+ This testbench provides less complexity than the generally accepted gm/Id lookup table generation that use 3 voltage sources for both NFET and PFET devices.
+
 
 # Getting Started
 
 # API Design Example
+
 # Files and Directories Description
 
 

@@ -14,6 +14,7 @@ Installation procedures are found in the docs directory in the file installation
 # Technology Characterization
 All FET technologies can be characterized with this testbench.
 ![cid_testbench](images/cid_testbench.png)
+
  The value of the ideal current source that connects the PFET and NFET drains together is swept and DC operating points for each device are saved and extracted with each DC operating point for lookup table generation. The Spectre MDL scripts provided in this repo create CSV files for lookup tables. The software takes care of translating the CSV files into the API. This characterization should be done for all lengths of transistor under interested or for a good span of lengths available in a given PDK. This charactetrization only needs to be done once per PDK.
 
  This testbench provides less complexity than the generally accepted gm/Id lookup table generation that use 3 voltage sources for both NFET and PFET devices.

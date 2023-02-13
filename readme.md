@@ -39,8 +39,12 @@ All lookups with the C/Id API use the same lookup names for model parameters acr
 - "kcss" - ratio of total capacitance at source node divided by drain current
 - "kcgg" - ratio of total capacitance at gate node divided by drain current
 - "kcdd"- ratio of total capacitance at drain node divided by drain current
-- "cgd, cgs, cds, css, cgg, cdd"- capacitances seen at each node following convention above
+- "kcdb" - ratio of drain bulk capacitance divided by drain current
+- "kcgb" - ratio of gate bulk capacitance divided by drain current
+- "kcsb" - ratio of source bulk capacitance divided by drain current
+- "cgd, cgs, cds, css, cgg, cdd", kcdb, kcgb, kcsb- capacitances seen at each node following convention above
 - "gm" - transconductance
+- "vth" - voltage threshold
 - "rds" - drain source resistance (reciprocal of gds)
 - "gds" - drain source conductance (reciprocal of rds)
 - "ids" - drain source current

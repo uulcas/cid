@@ -12,6 +12,8 @@ For now the C/Id software only supports Cadence/Spectre simulator for characteri
 # Installation
 
 # Technology Characterization
+All FET technologies can be characterized with this testbench.
+![cid_testbench](images/cid_testbench.png))
 
 # Getting Started
 

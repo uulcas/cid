@@ -45,6 +45,7 @@ All lookups with the C/Id API use the same lookup names for model parameters acr
 - "cgd, cgs, cds, css, cgg, cdd", kcdb, kcgb, kcsb- capacitances seen at each node following convention above
 - "gm" - transconductance
 - "vth" - voltage threshold
+- "vdsat" - drain source saturation voltage
 - "rds" - drain source resistance (reciprocal of gds)
 - "gds" - drain source conductance (reciprocal of rds)
 - "ids" - drain source current

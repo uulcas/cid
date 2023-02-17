@@ -1,0 +1,27 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: C/Id API
+message: >-
+  The University of Utah Laboratory for Circuits and Systems
+  C/Id API
+type: software
+authors:
+  - given-names: Alec Stefan
+    family-names: Adair
+    email: alec.adair@utah.edu
+    affiliation: ECE Master's Student
+repository-code: 'https://github.com/uulcas/cid'
+url: 'https://lcas.ece.utah.edu'
+abstract: >-
+  The C/Id API affords analog IC designers the ability to create design
+  scripts in Python that are technology agnostic and SPICE
+  accurate. 
+keywords:
+  - >-
+    analog design, gm/Id, C/Id, integrated circuit,
+    micro-electronics
+license: BSD-3-Clause
+version: '0.9'
+date-released: '2023-02-14'

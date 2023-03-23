@@ -64,6 +64,11 @@ class CID:
         for num in input_array:
             normalized_array.append((num - min_val) / (max_val - min_val))
         return normalized_array
+	 
+    # returns matrix for lookup
+    # must be implemented by inherited objects   
+    def lookup(param1, param2)
+        print("")
 
 
 # Should Inherit CID 
@@ -115,6 +120,8 @@ class CIDDevice(CIDTech):
         corner = self.corners[corner_name]
         ids_bucket = corner.get_bucket_for_ids_measurement(fet_type, l, ids_target)
         return ids_bucket
+
+
 # Should Inherit CIDDevice
 class CIDCorner(CIDDevice):
 

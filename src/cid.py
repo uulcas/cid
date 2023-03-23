@@ -108,7 +108,7 @@ class CIDDevice(CIDTech):
         corner.import_lut(lut_csv, vdd)
         self.corners[corner_name] = corner
 
-    def get_bucket_for_ids_mesurement(self, corner_name, fet_type, l, ids_target):
+    def get_bucket_for_ids_measurement(self, corner_name, fet_type, l, ids_target):
         if corner_name not in self.corners:
             print("Corner " + corner + " does not exist in device " + self.device_name)
             return 0.0

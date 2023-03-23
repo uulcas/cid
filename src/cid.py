@@ -118,7 +118,6 @@ class CIDDevice(CIDTech):
 # Should Inherit CIDDevice
 class CIDCorner(CIDDevice):
 
-
     def __init__(self, corner_name="", lut_csv="", vdd=0.0):
         self.vdd = vdd
         self.max_min_vals = {}

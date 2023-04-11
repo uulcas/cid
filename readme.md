@@ -56,3 +56,4 @@ All lookups with the C/Id API use the same lookup names for model parameters acr
 - "ro" - output resistance
 - "ic" - inversion coefficient
 - "n" - subthreshold slope factor
+- "iden" - current density

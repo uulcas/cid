@@ -16,8 +16,9 @@ import matplotlib.ticker as mticker
 from matplotlib import cm
 import matplotlib.tri as mtri
 import pandas as pd
+import math
 
-matplotlib.use('TKAgg')
+#matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 
 class CID:
@@ -105,7 +106,7 @@ class CIDDevice(CIDTech):
 
     def get_bucket_for_ids_mesurement(self, corner_name, fet_type, l, ids_target):
         if corner_name not in self.corners:
-            print("Corner " + corner + " does not exist in device " + self.device_name)
+            print("Corner " + corner_name + " does not exist in device " + self.device_name)
             return 0.0
         corner = self.corners[corner_name]
         ids_bucket = corner.get_bucket_for_ids_measurement(fet_type, l, ids_target)
@@ -127,6 +128,9 @@ class CIDCorner(CIDDevice):
 
         if lut_csv != "" and os.path.isfile(lut_csv):
             self.import_lut(lut_csv, vdd)
+        else:
+            print("LUT CSV File " + lut_csv + "does not exist")
+            return None
 
     def reset_df(self):
         self.df.reset_index()
@@ -220,13 +224,6 @@ class CIDCorner(CIDDevice):
         print("TODO")
 
 
-    def lookup(self, param1, param2, fet_type, l, id):
-        l_str = str(l)
-        id_str = str(id)
-        id_bucket = self.get_bucket_for_ids_measurement(fet_type, l, id)
-        print("TODO LOOKUP ID")
-
-
     def lookup2(self):
         print("TODO")
 
@@ -237,4 +234,68 @@ class CIDCorner(CIDDevice):
 
     def bucket_lookup_val(self, param, val):
         print("TODO")
+
+
+    def lookup(self, param1, param2, param1_val):
+        if not self.check_if_param_exists(param1) and self.check_if_param_exists(param2):
+            return None
+        closest_value = self.df[param1].values[np.abs(self.df[param1].values - param1_val).argmin()]
+        result = self.df.loc[self.df[param1] == closest_value, param2].values[0]
+        return result
+
+    def check_if_param_exists(self, param):
+        if param in self.df.columns:
+            return True
+        else:
+            return False
+
+    def get_max_val_for_param(self, param):
+        if not self.check_if_param_exists(param):
+            return None
+        max_value = self.df[param].max()
+        # get the row number of the maximum value
+        row_number = self.df.loc[self.df[param] == max_value].index[0]
+        return max_value, row_number
+
+    def get_min_val_for_param(self, param):
+        if not self.check_if_param_exists(param):
+            return None
+        min_value = self.df[param].min()
+        # get the row number of the minimum value
+        row_number = self.df.loc[self.df[param] == min_value].index[0]
+        return min_value, row_number
+
+    def take_deriv_for_param(self, param):
+        if not self.check_if_param_exists(param):
+            return None
+        deriv = self.df[param].diff()
+        return deriv
+
+    def get_param_values(self, param):
+        if not self.check_if_param_exists(param):
+            return None
+        vals = self.df[param].values
+        return vals
+
+    def magic_equation(self, gbw, cload):
+        min_ids = 1000000000
+        kgm_col  = self.df["kgm"]
+        cgg_col = self.df["cgg"]
+        kcgd_col = self.df["kcgd"]
+        ids_col = self.df["ids"]
+        #print(kcgd_col)
+        print(self.df)
+        kgm_opt = 0
+        for i in range(len(kgm_col)):
+            kcgd = kcgd_col[i]
+            cgg = cgg_col[i]
+
+            kgm = kgm_col[i]
+            numerator = 2*math.pi*gbw*cload
+            denom = (1 - (2*math.pi*(kcgd/kgm)))*kgm
+            ids = numerator/denom
+            if ids <= min_ids:
+                min_ids = ids
+                kgm_opt = kgm
+        return min_ids, kgm_opt
 

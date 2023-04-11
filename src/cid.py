@@ -20,10 +20,6 @@ import pandas as pd
 matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 
-# CID is master object
-# Base object is CIDCorner
-# CIDCorner and middle layers should inherit all methods from CID
-# CID is a "virtual" class - defines all method stubs for lookups
 class CID:
 
     def __init__(self):
@@ -50,6 +46,8 @@ class CID:
         ids_bucket = tech.get_bucket_for_ids_measurement(flavor, corner, fet_type, l, ids_target)
         return ids_bucket
 
+
+
     @staticmethod
     def normalize_array(input_array):
         max_val = 0
@@ -64,14 +62,8 @@ class CID:
         for num in input_array:
             normalized_array.append((num - min_val) / (max_val - min_val))
         return normalized_array
-	 
-    # returns matrix for lookup
-    # must be implemented by inherited objects   
-    def lookup(param1, param2)
-        print("")
 
 
-# Should Inherit CID 
 class CIDTech(CID):
 
     def __init__(self, tech_name):
@@ -96,8 +88,6 @@ class CIDTech(CID):
         ids_bucket = device.get_bucket_for_ids_measurement(corner, fet_type, l, ids_target)
         return ids_bucket
 
-
-# Should Inherit CIDTech
 class CIDDevice(CIDTech):
 
     def __init__(self, device, corner_name, lut_csv, vdd):
@@ -113,7 +103,7 @@ class CIDDevice(CIDTech):
         corner.import_lut(lut_csv, vdd)
         self.corners[corner_name] = corner
 
-    def get_bucket_for_ids_measurement(self, corner_name, fet_type, l, ids_target):
+    def get_bucket_for_ids_mesurement(self, corner_name, fet_type, l, ids_target):
         if corner_name not in self.corners:
             print("Corner " + corner + " does not exist in device " + self.device_name)
             return 0.0
@@ -121,9 +111,8 @@ class CIDDevice(CIDTech):
         ids_bucket = corner.get_bucket_for_ids_measurement(fet_type, l, ids_target)
         return ids_bucket
 
-
-# Should Inherit CIDDevice
 class CIDCorner(CIDDevice):
+
 
     def __init__(self, corner_name="", lut_csv="", vdd=0.0):
         self.vdd = vdd
@@ -217,6 +206,7 @@ class CIDCorner(CIDDevice):
         return closest_param
 
 
+
     def get_bucket_for_length(self, fet_type, target_l):
         float_type = 0.0
         if fet_type == "pfet":
@@ -233,7 +223,18 @@ class CIDCorner(CIDDevice):
     def lookup(self, param1, param2, fet_type, l, id):
         l_str = str(l)
         id_str = str(id)
-        #id_bucket = self.get_bucket_for_ids_measurement(fet_type, l, id)
-        
+        id_bucket = self.get_bucket_for_ids_measurement(fet_type, l, id)
+        print("TODO LOOKUP ID")
 
+
+    def lookup2(self):
+        print("TODO")
+
+
+    def lookup3(self, param1, param2, fet_type, l, norm_type="",):
+        print("TODO")
+
+
+    def bucket_lookup_val(self, param, val):
+        print("TODO")
 

@@ -7,19 +7,23 @@
 #
 
 import sys, os, getpass, shutil, operator, collections, copy, re
-from os.path import expanduser
-from scipy import interpolate
+#from os.path import expanduser
+#from scipy import interpolate
 import numpy as np
-import constants
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.ticker as mticker
-from matplotlib import cm
-import matplotlib.tri as mtri
+#import constants
+#from mpl_toolkits.mplot3d import Axes3D
+#import matplotlib.ticker as mticker
+#from matplotlib import cm
+#import matplotlib.tri as mtri
+import matplotlib
+matplotlib.use("TkAgg")
+
+import matplotlib.pyplot as plt
 import pandas as pd
 import math
 
 #matplotlib.use('TKAgg')
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 class CID:
 
@@ -40,7 +44,7 @@ class CID:
         return(True)
 
     def get_bucket_for_ids_measurement(self, tech, flavor, corner, fet_type, l, ids_target):
-        if tech_name not in self.techs:
+        if tech not in self.techs:
             print("tech " + tech + "does not exist")
             return False
         tech = self.techs[tech]
@@ -145,6 +149,41 @@ class CIDCorner(CIDDevice):
         if corner_name == "":
             self.corner_name = corner_name
         self.df.reset_index()
+        if not self.check_if_param_exists("ft"):
+            ft_array = []
+            cgg_col = self.df["cgg"]
+            gm_col = self.df["gm"]
+            for i in range(len(cgg_col)):
+                cgg = cgg_col[i]
+                gm = gm_col[i]
+                ft = gm/(2*math.pi*cgg)
+                ft_array.append(ft)
+            self.df["ft"] = ft_array
+        if not self.check_if_param_exists("gmro"):
+            gmro_array = []
+            gm_col = self.df["gm"]
+            ro_col = self.df["ro"]
+            for i in range(len(gm_col)):
+                gm = gm_col[i]
+                ro = ro_col[i]
+                gmro = gm*ro
+                gmro_array.append(gmro)
+            self.df["gmro"] = gmro_array
+        if not self.check_if_param_exists("iden"):
+            iden_array = []
+            ids_col = self.df["ids"]
+            width = self.df["W"][0]
+            for i in range(len(ids_col)):
+                ids = ids_col[i]
+                iden = ids/width
+                iden_array.append(iden)
+            self.df["iden"] = iden_array
+        if not self.check_if_param_exists("dkcgs"):
+            kcgs_col = self.df["kcgs"]
+            kgm_col = self.df["kgm"]
+            dkcgs_array = np.diff(kcgs_col)/np.diff(kgm_col)
+            dkcgs_array = np.append(dkcgs_array, 0.0)
+            self.df["dkcgs"] = dkcgs_array
         return 0
 
     #method not needed
@@ -277,7 +316,10 @@ class CIDCorner(CIDDevice):
         vals = self.df[param].values
         return vals
 
-    def magic_equation(self, gbw, cload):
+    def magic_equation(self, gbw, cload, show_plot=False, new_plot=True, ax1=None, fig1=None, color="blue"):
+        graph_data_x = []
+        graph_data_y = []
+        #graph = show_plot
         min_ids = 1000000000
         kgm_col  = self.df["kgm"]
         cgg_col = self.df["cgg"]
@@ -288,14 +330,130 @@ class CIDCorner(CIDDevice):
         kgm_opt = 0
         for i in range(len(kgm_col)):
             kcgd = kcgd_col[i]
-            cgg = cgg_col[i]
-
+            #cgg = cgg_col[i]
             kgm = kgm_col[i]
-            numerator = 2*math.pi*gbw*cload
-            denom = (1 - (2*math.pi*(kcgd/kgm)))*kgm
-            ids = numerator/denom
-            if ids <= min_ids:
+            strong_inv = 2*math.pi*gbw*cload/kgm
+            #weak_inv = (1 - (2*math.pi*(kcgd/kgm)))*kgm
+            weak_inv = 1/(1 - (2*math.pi*gbw*kcgd)/kgm)
+            ids = strong_inv*weak_inv
+            #if show_plot:
+            if ids >= 0:
+                graph_data_y.append(ids)
+                graph_data_x.append(kgm)
+            if ids <= min_ids and ids > 0:
                 min_ids = ids
                 kgm_opt = kgm
+        if show_plot:
+            if new_plot:
+                fig1, ax1 = plt.subplots()
+                plt.plot(graph_data_x, graph_data_y, color=color)
+                if show_plot == True:
+                    plt.show()
+                #plt.savefig("magic_equation.png")
+            else:
+                ax1.plot(graph_data_x, graph_data_y, color=color)
+            ax1.set_xlabel("kgm")
+            ax1.set_ylabel("id")
         return min_ids, kgm_opt
 
+    def plot_processes_params(self, param1, param2, norm_type="", show_plot=True, new_plot=True, fig1=None, ax1=None):
+        color_list = ['r-', 'b-', 'g-', 'c-', 'm-', 'y-', 'k-']
+        color_list_length = len(color_list)
+        color_index = 0
+        if new_plot == True:
+            fig1, ax1 = plt.subplots()
+        lines = []
+        #for process in tech_list:
+        #vdda = self.vdda_dictionary[process]
+        #half_vdda = str(vdda/2)
+
+        #for length in self.lookup_tables[process][fet_type]:
+        #lookup_table_for_length = self.lookup_tables[process][fet_type][length]
+        length = self.lookup(param1="kgm", param2="L",param1_val=10)
+        steps_counter = 0
+        steps_stop = 0
+        #if(fet_type == "nfet"):
+        #    steps_stop = 2
+        #else:
+        #    steps_stop = 6
+        params1_all = self.df[param1]
+        params2_all = self.df[param2]
+        kgm_col = self.df["kgm"]
+        params1 = []
+        params2 = []
+        for i in range(len(params1_all)):
+            kgm_col_i = kgm_col[i]
+            if kgm_col_i > 0.5 and kgm_col_i < 40:
+                params1.append(params1_all[i])
+                params2.append(params2_all[i])
+        col1 = []
+        #for item in col1:
+            #vgs = float(vgs_str)
+            #half_vdda=self.get_bucket_for_vds_measurement(tech=process, fet_type=fet_type, vgs=vgs_str,l=length, vds_target=half_vdda)
+            #if(steps_counter > steps_stop):
+                #param_one = lookup_table_for_length[vgs_str][half_vdda]["0.0"][param1]
+                #param_two = lookup_table_for_length[vgs_str][half_vdda]["0.0"][param2]
+                #params1.append(param_one)
+                #params2.append(param_two)
+            #steps_counter = steps_counter + 1
+        length_string = "L=" + str(length) + "um " + self.corner_name
+        params1_normalized = []
+        params2_normalized = []
+        params1_max = 0
+        for num in params1:
+            if num >= params1_max:
+                params1_max = num
+        params1_min = params1_max
+        for num in params1:
+            if num <= params1_min:
+                params1_min = num
+        params2_max = 0
+        for num in params2:
+            if num >= params2_max:
+                params2_max = num
+        params2_min = params2_max
+        for num in params2:
+            if num <= params2_min:
+                params2_min = num
+
+        for num in params1:
+            params1_normalized.append((num - params1_min) / (params1_max - params1_min))
+        for num in params2:
+            params2_normalized.append((num - params2_min) / (params2_max - params2_min))
+        color_string = ""
+        if (norm_type == "xnorm"):
+            ax1.plot(params1_normalized, params2, color_list[color_index], label=length_string)
+            lines.append(params1_normalized)
+            lines.append(params2)
+        elif (norm_type == "ynorm"):
+            ax1.plot(params1, params2_normalized, color_list[color_index], label=length_string)
+            lines.append(params1)
+            lines.append(params2_normalized)
+        elif (norm_type == "norm"):
+            ax1.plot(params1_normalized, params2_normalized, color_list[color_index], label=length_string)
+            lines.append(params1_normalized)
+            lines.append(params2_normalized)
+        else:
+            ax1.plot(params1, params2, color_list[color_index], label=length_string)
+            lines.append(params1)
+            lines.append(params2)
+        if(color_index == color_list_length - 1):
+            color_index = 0
+        else:
+            color_index = color_index + 1
+
+        ax1.set_xlabel(param1)
+        ax1.set_ylabel(param2)
+        graph_title_string = self.corner_name + " " + param2 + " vs " + param1
+        ax1.set_title(graph_title_string)
+        plt.grid(True)
+        legend = ax1.legend(bbox_to_anchor=(1.0, 0.5), loc="center left", fontsize='small')
+        lined = {}
+        for legline, origline in zip(legend.get_lines(), lines):
+            legline.set_picker(True)
+            lined[legline] = origline
+        #fig1.canvas.mpl_connect('pick_event', self.on_pick)
+        plt.subplots_adjust(right=0.7)
+        if(show_plot == True):
+            plt.show()
+        return((fig1, ax1))

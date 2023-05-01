@@ -93,31 +93,73 @@ class CIDTech(CID):
         ids_bucket = device.get_bucket_for_ids_measurement(corner, fet_type, l, ids_target)
         return ids_bucket
 
-class CIDDevice(CIDTech):
+class CIDDevice:
 
-    def __init__(self, device, corner_name, lut_csv, vdd):
-        self.device_name = device
-        self.corners = {}
+    def __init__(self, device_name, vdd=0.0, lut_directory=None, corner_list=None):
+        self.device_name = device_name
+        self.vdd = vdd
+        self.corners = []
+        if corner_list != None:
+            for corner in corner_list:
+                self.corners.append(corner)
+        if lut_directory != None and os.path.exists(lut_directory):
+            i = 0
+            base_corner_name = "corner_"
+            for filename in os.listdir(lut_directory):
+                lut_file = os.path.join(lut_directory, filename)
+                corner_name = base_corner_name + str(i)
+                corner = CIDCorner(corner_name=corner_name,
+                                   lut_csv=lut_file,
+                                   vdd=vdd)
+                self.corners.append(corner)
+                i = i + 1
 
-    def add_corner_lut(self, corner_name, lut_csv, vdd):
-        corner = None
-        if corner_name not in self.corners:
-            corner = CIDCorner(corner_name, lut_csv, vdd)
-        else:
-            corner = self.corners[corner_name]
-        corner.import_lut(lut_csv, vdd)
-        self.corners[corner_name] = corner
+    def add_corner_from_lut(self, corner_name, lut_csv, vdd):
+        #corner = None
+        #if corner_name not in self.corners:
+        #    corner = CIDCorner(corner_name, lut_csv, vdd)
+        #else:
+        #    corner = self.corners[corner_name]
+        #corner.import_lut(lut_csv, vdd)
+        #self.corners[corner_name] = corner
+        if os.path.exists(lut_csv):
+            corner = CIDCorner(corner_name=corner_name, lut_csv=lut_csv, vdd=vdd)
+            self.corner_list.append(corner)
 
-    def get_bucket_for_ids_mesurement(self, corner_name, fet_type, l, ids_target):
-        if corner_name not in self.corners:
-            print("Corner " + corner_name + " does not exist in device " + self.device_name)
-            return 0.0
-        corner = self.corners[corner_name]
-        ids_bucket = corner.get_bucket_for_ids_measurement(fet_type, l, ids_target)
-        return ids_bucket
+    def magic_equation(self, gbw, cload, epsilon=10, show_plot=False, new_plot=True, ax1=None, fig1=None):
+        kgm_min = 1e13
+        ids_opt = 1e13
+        for corner in self.corners:
+            ids_opt, kgm_opt = corner.magic_equation(gbw=gbw, cload=cload, show_plot=show_plot, new_plot=new_plot,
+                                                     ax1=ax1, fig1=fig1)
+            if abs(kgm_opt) < kgm_min:
+                kgm_min = kgm_opt
+        max_id_corner = 0
+        min_id_corner = 1e13
+        kgm_step_size = kgm_min/100
+        kgm_convergence = 0
+        kgm_eval = kgm_min
+        while kgm_eval > 0:
+        #for i in reversed(range(0, kgm_min, kgm_step_size)):
+            for corner in self.corners:
+                #ids_opt, kgm_opt = corner.magic_equation(gbw=gbw, cload=cload, show_plot=show_plot, new_plot=new_plot,
+                #                                         ax1=ax1, fig1=fig1)
+                ids = abs(corner.evaluate_magic_function(gbw, cload, kgm_eval))
+                if ids > max_id_corner:
+                    max_id_corner = ids
+                if ids < min_id_corner:
+                    min_id_corner = ids
+                percentage_diff = 100
+                if min_id_corner != max_id_corner:
+                    percentage_diff = (1 - (min_id_corner/max_id_corner))*100
+                if percentage_diff < epsilon:
+                    average_current = (max_id_corner + min_id_corner)/2
+                    return average_current, kgm_eval
+            kgm_eval = kgm_eval - kgm_step_size
+        print("Device does not converge within " + epsilon + "% Across PVT")
+        return -1
 
 class CIDCorner(CIDDevice):
-
 
     def __init__(self, corner_name="", lut_csv="", vdd=0.0):
         self.vdd = vdd
@@ -178,12 +220,16 @@ class CIDCorner(CIDDevice):
                 iden = ids/width
                 iden_array.append(iden)
             self.df["iden"] = iden_array
+        """
         if not self.check_if_param_exists("dkcgs"):
             kcgs_col = self.df["kcgs"]
             kgm_col = self.df["kgm"]
+            num = np.diff(kcgs_col)
+            denom = np.diff(kgm_col)
             dkcgs_array = np.diff(kcgs_col)/np.diff(kgm_col)
             dkcgs_array = np.append(dkcgs_array, 0.0)
             self.df["dkcgs"] = dkcgs_array
+        """
         return 0
 
     #method not needed
@@ -207,16 +253,19 @@ class CIDCorner(CIDDevice):
         self.get_closest_param_value(param, param_val)
 
     def get_closest_param_in_df(self, param, param_val):
-        largest_param_diff = 1e33
+        smallest_param_diff = 1e33
         closest_param = None
-        for i, row in self.df.iterrows():
-            param_i = row[param]
+        index = 0
+        param_col = self.df[param]
+        for i in range(0, len(param_col)):
+        #for i, row in self.df.iterrows():
+            param_i = param_col[i]
             param_diff = abs(param_i - param_val)
-            if param_diff >= largest_param_diff:
-                largest_param_diff = param_diff
+            if param_diff <= smallest_param_diff:
+                smallest_param_diff = param_diff
                 closest_param = param_i
-
-        return closest_param
+                index = i
+        return closest_param, index
 
 
     def get_closest_param_value(self, fet_type, length, param, param_val):
@@ -326,7 +375,7 @@ class CIDCorner(CIDDevice):
         kcgd_col = self.df["kcgd"]
         ids_col = self.df["ids"]
         #print(kcgd_col)
-        print(self.df)
+        #print(self.df)
         kgm_opt = 0
         for i in range(len(kgm_col)):
             kcgd = kcgd_col[i]
@@ -355,6 +404,20 @@ class CIDCorner(CIDDevice):
             ax1.set_xlabel("kgm")
             ax1.set_ylabel("id")
         return min_ids, kgm_opt
+
+    def evaluate_magic_function(self, gbw, cload, kgm):
+        min_ids = 1000000000
+        kgm_col  = self.df["kgm"]
+        cgg_col = self.df["cgg"]
+        kcgd_col = self.df["kcgd"]
+        closest_kgm, index = self.get_closest_param_in_df("kgm", kgm)
+        kcgd = kcgd_col[index]
+        kgm = kgm_col[index]
+        strong_inv = 2*math.pi*gbw*cload/kgm
+        weak_inv = 1/(1 - (2*math.pi*gbw*kcgd)/kgm)
+        ids = strong_inv*weak_inv
+        return ids
+
 
     def plot_processes_params(self, param1, param2, norm_type="", show_plot=True, new_plot=True, fig1=None, ax1=None):
         color_list = ['r-', 'b-', 'g-', 'c-', 'm-', 'y-', 'k-']

@@ -69,7 +69,7 @@ class CID:
         return normalized_array
 
 
-class CIDTech(CID):
+class CIDTech:
 
     def __init__(self, tech_name):
         self.tech_name = tech_name
@@ -82,7 +82,6 @@ class CIDTech(CID):
         else:
             device = CIDDevice(device=device_flavor, corner_name=corner_name, lut_csv=lut_csv, vdd=vdd)
         device.add_corner_lut(corner_name, lut_csv, vdd)
-
         return True
 
     def get_bucket_for_ids_measurement(self, device_flavor, corner, fet_type, l, ids_target):
@@ -93,26 +92,16 @@ class CIDTech(CID):
         ids_bucket = device.get_bucket_for_ids_measurement(corner, fet_type, l, ids_target)
         return ids_bucket
 
-class CIDDevice:
-
-    def __init__(self, device_name, vdd=0.0, lut_directory=None, corner_list=None):
-        self.device_name = device_name
-        self.vdd = vdd
+class CIDCornerCollection:
+    def __init__(self, collection_name, file_list=None, corner_list=None):
+        self.collection_name = collection_name
         self.corners = []
         if corner_list != None:
             for corner in corner_list:
                 self.corners.append(corner)
-        if lut_directory != None and os.path.exists(lut_directory):
-            i = 0
-            base_corner_name = "corner_"
-            for filename in os.listdir(lut_directory):
-                lut_file = os.path.join(lut_directory, filename)
-                corner_name = base_corner_name + str(i)
-                corner = CIDCorner(corner_name=corner_name,
-                                   lut_csv=lut_file,
-                                   vdd=vdd)
-                self.corners.append(corner)
-                i = i + 1
+        if file_list != None:
+            for file in file_list:
+                self.add_corner_from_lut(corner_name=file, lut_csv=file, vdd=0)
 
     def add_corner_from_lut(self, corner_name, lut_csv, vdd):
         #corner = None
@@ -124,16 +113,31 @@ class CIDDevice:
         #self.corners[corner_name] = corner
         if os.path.exists(lut_csv):
             corner = CIDCorner(corner_name=corner_name, lut_csv=lut_csv, vdd=vdd)
-            self.corner_list.append(corner)
+            self.corners.append(corner)
 
-    def magic_equation(self, gbw, cload, epsilon=10, show_plot=False, new_plot=True, ax1=None, fig1=None):
+    def magic_equation(self, gbw, cload, epsilon=5, show_plot=False, new_plot=True, ax1=None, fig1=None):
         kgm_min = 1e13
         ids_opt = 1e13
+        first_corner = True
+        color_list = ["blue", "orange", "green", "red", "purple", "brown", "pink", "gray", "olive", "cyan"]
+        color_index = 0
+        color_list_length = len(color_list)
+        if ax1 == None or fig1 == None:
+            ax1, fig1 = plt.subplots()
         for corner in self.corners:
-            ids_opt, kgm_opt = corner.magic_equation(gbw=gbw, cload=cload, show_plot=show_plot, new_plot=new_plot,
-                                                     ax1=ax1, fig1=fig1)
+            color = color_list[color_index]
+            if first_corner == True:
+                new_plot = True
+            ids_opt, kgm_opt, ax1, fig1 = corner.magic_equation(gbw=gbw, cload=cload, show_plot=show_plot, new_plot=new_plot,
+                                                     ax1=ax1, fig1=fig1, color=color)
             if abs(kgm_opt) < kgm_min:
                 kgm_min = kgm_opt
+            new_plot = False
+            first_corner = False
+            if(color_index == color_list_length - 1):
+                color_index = 0
+            else:
+                color_index = color_index + 1
         max_id_corner = 0
         min_id_corner = 1e13
         kgm_step_size = kgm_min/100
@@ -156,10 +160,155 @@ class CIDDevice:
                     average_current = (max_id_corner + min_id_corner)/2
                     return average_current, kgm_eval
             kgm_eval = kgm_eval - kgm_step_size
-        print("Device does not converge within " + epsilon + "% Across PVT")
-        return -1
+        print("Device does not converge within " + str(epsilon) + "%")
+        return -1, -1
 
-class CIDCorner(CIDDevice):
+    def plot_processes_params(self, param1, param2, norm_type="", show_plot=True, new_plot=True, fig1=None, ax1=None):
+        corner_list = self.corners
+        first_corner = True
+        color_list = ['r-', 'b-', 'g-', 'c-', 'm-', 'y-', 'k-']
+        color_list = ["blue", "orange", "green", "red", "purple", "brown", "pink", "gray", "olive", "cyan"]
+        color_list_length = len(color_list)
+        color_index = 0
+        for corner in corner_list:
+            color = color_list[color_index]
+            corner_pdk = corner.pdk
+            length_str = str(corner.length)
+            corner_name = corner.corner_name
+            legend_str = "PDK: " + corner_pdk + ", L: " + length_str + ", corner: " + corner_name
+            if first_corner == True:
+                fig1, ax1 = corner.plot_processes_params(param1=param1, param2=param2, norm_type=norm_type, show_plot=True,
+                                                         new_plot=new_plot, fig1=fig1, ax1=ax1, color=color, legend_str=legend_str)
+                first_corner = False
+            else:
+                fig1, ax1 = corner.plot_processes_params(param1=param1, param2=param2, norm_type=norm_type, show_plot=show_plot,
+                                                         new_plot=False, fig1=fig1, ax1=ax1, color=color, legend_str=legend_str)
+            if(color_index == color_list_length - 1):
+                color_index = 0
+            else:
+                color_index = color_index + 1
+        return 0
+
+class CIDDevice:
+
+    def __init__(self, device_name, vdd=0.0, lut_directory=None, corner_list=None):
+        self.device_name = device_name
+        self.vdd = vdd
+        self.corners = []
+        self.length = 0
+        self.pdk = 0
+        if corner_list != None:
+            for corner in corner_list:
+                self.corners.append(corner)
+        if lut_directory != None and os.path.exists(lut_directory):
+            i = 0
+            base_corner_name = ""
+            for filename in os.listdir(lut_directory):
+                filename_parse = filename.split(".")
+                lut_file = os.path.join(lut_directory, filename)
+                corner_name = base_corner_name + filename_parse[0]
+                corner = CIDCorner(corner_name=corner_name,
+                                   lut_csv=lut_file,
+                                   vdd=vdd)
+                self.corners.append(corner)
+                i = i + 1
+        if len(self.corners) != 0:
+            pdk_col = self.corners[0].df["pdk"]
+            l_col = self.corners[0].df["L"]
+            self.pdk = pdk_col[0]
+            self.length = l_col[0]
+
+    def add_corner_from_lut(self, corner_name, lut_csv, vdd):
+        #corner = None
+        #if corner_name not in self.corners:
+        #    corner = CIDCorner(corner_name, lut_csv, vdd)
+        #else:
+        #    corner = self.corners[corner_name]
+        #corner.import_lut(lut_csv, vdd)
+        #self.corners[corner_name] = corner
+        if os.path.exists(lut_csv):
+            corner = CIDCorner(corner_name=corner_name, lut_csv=lut_csv, vdd=vdd)
+            self.corner_list.append(corner)
+
+    def magic_equation(self, gbw, cload, epsilon=10, show_plot=False, new_plot=True, ax1=None, fig1=None):
+        kgm_min = 1e13
+        ids_opt = 1e13
+        first_corner = True
+        color_list = ["blue", "orange", "green", "red", "purple", "brown", "pink", "gray", "olive", "cyan"]
+        color_index = 0
+        color_list_length = len(color_list)
+        if ax1 == None or fig1 == None and show_plot == True and new_plot == False:
+            ax1, fig1 = plt.subplots()
+        for corner in self.corners:
+            color = color_list[color_index]
+            if first_corner == True:
+                new_plot = True
+            ids_opt, kgm_opt, ax1, fig1 = corner.magic_equation(gbw=gbw, cload=cload, show_plot=show_plot, new_plot=new_plot,
+                                                     ax1=ax1, fig1=fig1, color=color)
+            if abs(kgm_opt) < kgm_min:
+                kgm_min = kgm_opt
+            new_plot = False
+            first_corner = False
+            if(color_index == color_list_length - 1):
+                color_index = 0
+            else:
+                color_index = color_index + 1
+        max_id_corner = 0
+        min_id_corner = 1e13
+        kgm_step_size = kgm_min/100
+        kgm_convergence = 0
+        kgm_eval = kgm_min
+        while kgm_eval > 0:
+        #for i in reversed(range(0, kgm_min, kgm_step_size)):
+            for corner in self.corners:
+                #ids_opt, kgm_opt = corner.magic_equation(gbw=gbw, cload=cload, show_plot=show_plot, new_plot=new_plot,
+                #                                         ax1=ax1, fig1=fig1)
+                ids = abs(corner.evaluate_magic_function(gbw, cload, kgm_eval))
+                if ids > max_id_corner:
+                    max_id_corner = ids
+                if ids < min_id_corner:
+                    min_id_corner = ids
+                percentage_diff = 100
+                if min_id_corner != max_id_corner:
+                    percentage_diff = (1 - (min_id_corner/max_id_corner))*100
+                if percentage_diff < epsilon:
+                    average_current = (max_id_corner + min_id_corner)/2
+                    return average_current, kgm_eval
+            kgm_eval = kgm_eval - kgm_step_size
+        print("Device does not converge within " + str(epsilon) + "% Across PVT")
+        return -1, -1
+
+    def plot_processes_params(self, param1, param2, norm_type="", show_plot=True, new_plot=True, fig1=None, ax1=None):
+        corner_list = self.corners
+        first_corner = True
+        color_list = ['r-', 'b-', 'g-', 'c-', 'm-', 'y-', 'k-']
+        color_list = ["blue", "orange", "green", "red", "purple", "brown", "pink", "gray", "olive", "cyan"]
+        color_list_length = len(color_list)
+        color_index = 0
+        for corner in corner_list:
+            color = color_list[color_index]
+            corner_pdk = corner.pdk
+            length_str = str(corner.length)
+            corner_name = corner.corner_name
+            legend_str = "PDK: " + corner_pdk + ", L: " + length_str + ", corner: " + corner_name
+            if first_corner == True:
+                fig1, ax1 = corner.plot_processes_params(param1=param1, param2=param2, norm_type=norm_type, show_plot=True,
+                                                         new_plot=new_plot, fig1=fig1, ax1=ax1, color=color, legend_str=legend_str)
+                first_corner = False
+            else:
+                fig1, ax1 = corner.plot_processes_params(param1=param1, param2=param2, norm_type=norm_type, show_plot=show_plot,
+                                                         new_plot=False, fig1=fig1, ax1=ax1, color=color, legend_str=legend_str)
+            if(color_index == color_list_length - 1):
+                color_index = 0
+            else:
+                color_index = color_index + 1
+        return 0
+
+
+
+
+
+class CIDCorner():
 
     def __init__(self, corner_name="", lut_csv="", vdd=0.0):
         self.vdd = vdd
@@ -169,13 +318,15 @@ class CIDCorner(CIDDevice):
         self.corner_name = corner_name
         self.lut_csv = lut_csv
         self.df = None
+        self.length = 0
         self.nfet_df = None
         self.pfet_df = None
+        self.pdk = ""
 
         if lut_csv != "" and os.path.isfile(lut_csv):
-            self.import_lut(lut_csv, vdd)
+            self.import_lut(lut_csv, vdd, corner_name=corner_name)
         else:
-            print("LUT CSV File " + lut_csv + "does not exist")
+            print("LUT CSV File " + lut_csv + " does not exist")
             return None
 
     def reset_df(self):
@@ -187,7 +338,11 @@ class CIDCorner(CIDDevice):
             return(False)
         self.vdd = vdd
         self.df = pd.read_csv(lut_csv, skipinitialspace=True)
+        pdk_col = self.df["pdk"]
+        self.pdk = pdk_col[0]
         self.lut_csv = lut_csv
+        length_col = self.df["L"]
+        self.length = length_col[0]
         if corner_name == "":
             self.corner_name = corner_name
         self.df.reset_index()
@@ -203,14 +358,19 @@ class CIDCorner(CIDDevice):
             self.df["ft"] = ft_array
         if not self.check_if_param_exists("gmro"):
             gmro_array = []
+            gds_gm_array = []
             gm_col = self.df["gm"]
             ro_col = self.df["ro"]
             for i in range(len(gm_col)):
                 gm = gm_col[i]
                 ro = ro_col[i]
                 gmro = gm*ro
+                gds_gm = 1/gmro
                 gmro_array.append(gmro)
+                gds_gm_array.append(gds_gm)
             self.df["gmro"] = gmro_array
+            self.df["gm/gds"] = gmro_array
+            self.df["gds/gm"] = gds_gm_array
         if not self.check_if_param_exists("iden"):
             iden_array = []
             ids_col = self.df["ids"]
@@ -220,6 +380,31 @@ class CIDCorner(CIDDevice):
                 iden = ids/width
                 iden_array.append(iden)
             self.df["iden"] = iden_array
+        if not self.check_if_param_exists("kgmft"):
+            kgmft_array = []
+            kgm_col = self.df["kgm"]
+            ft_col = self.df["ft"]
+            for i in range(len(kgm_col)):
+                kgm = kgm_col[i]
+                ft = ft_col[i]
+                kgmft = kgm*ft
+                kgmft_array.append(kgmft)
+            self.df["kgmft"] = kgmft_array
+            self.df["gmidft"] = kgmft_array
+        if not self.check_if_param_exists("vds"):
+            vds_array = []
+            vds_col = self.df["VDS"]
+            for i in range(len(vds_col)):
+                vds = vds_col[i]
+                vds_array.append(vds)
+            self.df["vds"] = vds_array
+        if not self.check_if_param_exists("vgs"):
+            vgs_array = []
+            vgs_col = self.df["VGS"]
+            for i in range(len(vgs_col)):
+                vgs = vgs_col[i]
+                vgs_array.append(vgs)
+            self.df["vgs"] = vgs_array
         """
         if not self.check_if_param_exists("dkcgs"):
             kcgs_col = self.df["kcgs"]
@@ -365,7 +550,8 @@ class CIDCorner(CIDDevice):
         vals = self.df[param].values
         return vals
 
-    def magic_equation(self, gbw, cload, show_plot=False, new_plot=True, ax1=None, fig1=None, color="blue"):
+    def magic_equation(self, gbw, cload, show_plot=False, new_plot=True, ax1=None, fig1=None, color="blue", legend_str=""):
+        legend_str = "PDK: " + self.pdk + ", L: " + str(self.length) + ", corner: " + self.corner_name
         graph_data_x = []
         graph_data_y = []
         #graph = show_plot
@@ -395,15 +581,18 @@ class CIDCorner(CIDDevice):
         if show_plot:
             if new_plot:
                 fig1, ax1 = plt.subplots()
-                plt.plot(graph_data_x, graph_data_y, color=color)
+                plt.plot(graph_data_x, graph_data_y, color=color, label=legend_str)
                 if show_plot == True:
                     plt.show()
                 #plt.savefig("magic_equation.png")
             else:
-                ax1.plot(graph_data_x, graph_data_y, color=color)
+                ax1.plot(graph_data_x, graph_data_y, color=color, label=legend_str)
             ax1.set_xlabel("kgm")
             ax1.set_ylabel("id")
-        return min_ids, kgm_opt
+            ax1.set_title(self.pdk + " GBW = " + str(gbw) + " CLoad = " + str(cload))
+            legend = ax1.legend()
+            #legend = ax1.legend(bbox_to_anchor=(1.0, 0.5), loc="center left", fontsize='small')
+        return min_ids, kgm_opt, ax1, fig1
 
     def evaluate_magic_function(self, gbw, cload, kgm):
         min_ids = 1000000000
@@ -419,7 +608,7 @@ class CIDCorner(CIDDevice):
         return ids
 
 
-    def plot_processes_params(self, param1, param2, norm_type="", show_plot=True, new_plot=True, fig1=None, ax1=None):
+    def plot_processes_params(self, param1, param2, norm_type="", show_plot=True, new_plot=True, fig1=None, ax1=None, color=None, legend_str=None):
         color_list = ['r-', 'b-', 'g-', 'c-', 'm-', 'y-', 'k-']
         color_list_length = len(color_list)
         color_index = 0
@@ -432,7 +621,7 @@ class CIDCorner(CIDDevice):
 
         #for length in self.lookup_tables[process][fet_type]:
         #lookup_table_for_length = self.lookup_tables[process][fet_type][length]
-        length = self.lookup(param1="kgm", param2="L",param1_val=10)
+        length = self.length
         steps_counter = 0
         steps_stop = 0
         #if(fet_type == "nfet"):
@@ -459,7 +648,8 @@ class CIDCorner(CIDDevice):
                 #params1.append(param_one)
                 #params2.append(param_two)
             #steps_counter = steps_counter + 1
-        length_string = "L=" + str(length) + "um " + self.corner_name
+        #if(legend_str == None):
+        #    legend_str = "L=" + str(length) + "um " + self.corner_name
         params1_normalized = []
         params2_normalized = []
         params1_max = 0
@@ -484,20 +674,22 @@ class CIDCorner(CIDDevice):
         for num in params2:
             params2_normalized.append((num - params2_min) / (params2_max - params2_min))
         color_string = ""
+        if color == None:
+            color = color_list[color_index]
         if (norm_type == "xnorm"):
-            ax1.plot(params1_normalized, params2, color_list[color_index], label=length_string)
+            ax1.plot(params1_normalized, params2, color, label=legend_str)
             lines.append(params1_normalized)
             lines.append(params2)
         elif (norm_type == "ynorm"):
-            ax1.plot(params1, params2_normalized, color_list[color_index], label=length_string)
+            ax1.plot(params1, params2_normalized, color, label=legend_str)
             lines.append(params1)
             lines.append(params2_normalized)
         elif (norm_type == "norm"):
-            ax1.plot(params1_normalized, params2_normalized, color_list[color_index], label=length_string)
+            ax1.plot(params1_normalized, params2_normalized, color, label=legend_str)
             lines.append(params1_normalized)
             lines.append(params2_normalized)
         else:
-            ax1.plot(params1, params2, color_list[color_index], label=length_string)
+            ax1.plot(params1, params2, color, label=legend_str)
             lines.append(params1)
             lines.append(params2)
         if(color_index == color_list_length - 1):
@@ -507,7 +699,7 @@ class CIDCorner(CIDDevice):
 
         ax1.set_xlabel(param1)
         ax1.set_ylabel(param2)
-        graph_title_string = self.corner_name + " " + param2 + " vs " + param1
+        graph_title_string = self.pdk + " " + param2 + " vs " + param1
         ax1.set_title(graph_title_string)
         plt.grid(True)
         legend = ax1.legend(bbox_to_anchor=(1.0, 0.5), loc="center left", fontsize='small')
